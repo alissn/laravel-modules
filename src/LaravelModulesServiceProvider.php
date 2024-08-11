@@ -4,6 +4,7 @@ namespace Nwidart\Modules;
 
 use Composer\InstalledVersions;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Foundation\Console\AboutCommand;
 use Nwidart\Modules\Contracts\RepositoryInterface;
 use Nwidart\Modules\Exceptions\InvalidActivatorClass;
@@ -42,6 +43,8 @@ class LaravelModulesServiceProvider extends ModulesServiceProvider
         $this->registerServices();
         $this->setupStubPath();
         $this->registerProviders();
+
+        $this->registerMigrations();
 
         $this->mergeConfigFrom(__DIR__.'/../config/config.php', 'modules');
     }
@@ -84,5 +87,28 @@ class LaravelModulesServiceProvider extends ModulesServiceProvider
             return new $class($app);
         });
         $this->app->alias(Contracts\RepositoryInterface::class, 'modules');
+    }
+
+    protected function registerMigrations(): void
+    {
+        if (! $this->app['config']->get('modules.auto-discover.migrations', true)) {
+            return;
+        }
+
+        $this->app->resolving(Migrator::class, function (Migrator $migrator) {
+
+            $path = implode(DIRECTORY_SEPARATOR, [
+                $this->app['config']->get('modules.paths.modules'),
+                '*',
+                '[Dd]atabase',
+                'migrations',
+            ]);
+
+            collect(glob($path, GLOB_ONLYDIR))
+                ->each(function (string $path) use ($migrator) {
+                    $migrator->path($path);
+                });
+        });
+
     }
 }
